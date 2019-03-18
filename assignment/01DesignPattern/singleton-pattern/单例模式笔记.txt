@@ -1,0 +1,213 @@
+饿汉式单利模式（在单例类首次加载的时候就创建实例）：
+特点：
+	1. 饿汉式是线程安全的
+	2. 私有构造函数 
+	3. 公开静态全局访问点 
+	4. 私有静态final的成员变量去初始化类的实例（静态成员变量加final是为了防止反射的时候成员变量被修改覆盖）（初始化可以用静态字段直接初始化，也可以用静态代码块去初始化））
+缺点：类被加载的时候就初始化了，浪费内存空间
+
+publicclassHungrySingleton{
+//final防止反射的时候静态变量被修改
+privatestaticfinalHungrySingletonSINGLETON=newHungrySingleton();
+
+privateHungrySingleton(){}
+
+publicstaticHungrySingletongetInstance(){
+returnSINGLETON;
+}
+}
+
+懒汉式单独模式（被外部类调用的时才创建实例）：
+特点：
+	1. 私有改造函数
+	2. 公开静态全局访问点
+	3. 私有静态的成员变量并赋值为空
+	4. 在公开静态访问点里面实例化并赋值给静态变量，然后返回(加空判断，防止重复赋值)
+	5. 线程不安全，当多个线程同时走到空判断的时候，会同时进入if判断，创建多个实例。解决线程不安全的方法：在getInstance方法上加上synchronized关键字（但有线程进入改方法的时候，会排斥其他线程，让其他线程处于monitor状态，只有但进入的线程执行完方法后，其他线程才能进入running状态，执行这个方法）
+
+	ü Lazy单例（线程不安全，多线程创建多个实例）
+publicclassLazySimpleSingleton{
+privatestaticLazySimpleSingletonsingleton=null;
+
+privateLazySimpleSingleton(){
+}
+
+publicstaticLazySimpleSingletongetInstance(){
+if(singleton==null){
+singleton=newLazySimpleSingleton();
+}
+returnsingleton;
+}
+}
+
+	ü Lazy+synchronized锁方法单例（线程安全，存在一定的性能问题，synchronized锁方法可能会把类也锁定）
+publicclassLazySynchronizedSingleton{
+privatestaticLazySynchronizedSingletonsingleton;
+privateLazySynchronizedSingleton(){}
+
+publicstaticsynchronizedLazySynchronizedSingletongetInstance(){
+
+if(singleton==null){
+singleton=newLazySynchronizedSingleton();
+}
+returnsingleton;
+}
+}
+
+	ü Lazy+DoubleCheck双重检查锁单例（synchronized放在方法里面锁初始化代码块+双重空判断）（问题cpu是通过指令执行的，多线程情况下会出现指令重排序的问题，解决指令重排序问题的方法，在私有静态变量上加volatile关键字）
+publicclassLazyDoubleCheckSingleton{
+privatestaticLazyDoubleCheckSingletonsingleton;
+//解决指令重排序问题
+//privatestaticvolatileLazyDoubleCheckSingletonsingleton;
+privateLazyDoubleCheckSingleton(){}
+publicstaticLazyDoubleCheckSingletongetInstance(){
+if(singleton==null){
+synchronized(LazyDoubleCheckSingleton.class){
+if(singleton==null)
+singleton=newLazyDoubleCheckSingleton();
+}
+}
+returnsingleton;
+}
+}
+
+懒汉式静态内部类单例模式：
+	1. 没有synchronized关键字，性能好
+	2. 当调用getInstance方法时，才会触发静态内部类的加载
+	3. 运到类的加载机制，当外部类加载的时候，首先会加载静态的内部类（内部类优先加载于外部类）
+publicclassLazyInnerClassSingleton{
+//私有构造函数
+privateLazyInnerClassSingleton(){
+//防止反射通过构造函数初始化实例
+if(LazyHolder.lazy!=null){
+thrownewRuntimeException("不允许构造多个实例");
+}
+}
+publicstaticLazyInnerClassSingletongetInstance(){
+returnLazyHolder.lazy;
+}
+
+privatestaticclassLazyHolder{
+//privatestaticfinalLazyInnerClassSingletonlazy=newLazyInnerClassSingleton();
+privatestaticfinalLazyInnerClassSingletonlazy;
+static{
+lazy=newLazyInnerClassSingleton();
+}
+}
+
+//防止序列化的方式破环单例模式
+//privateObjectreadResolve(){
+//returnLazyHolder.lazy;//返回单例的私有静态变量
+//}
+}
+
+破坏单例的方法：
+	1. 通过反射的方式，直接拿到私有的构造函数，然后初始化实例，这个时候单例失效。解决方案：可以在私有构造函数里面加判断，不允许反射构造多个实例，直接抛出异常，让用户走正常getInstance方法初始化实例
+	2. 通过序列化的方式，把单例对象写入到磁盘文件中，然后从磁盘文件内容然后反序列化为Java对象，就会创建一个新的对象（就是深拷贝的过程），这个时候单例失效。解决方案：在单例类中重写readResolve方法，在反序列产生新对象后，会去检查是否有readResolve方法，如果有会调用这个方法把新产生的实例用原来的单例覆盖掉，新产生的实例会把GC回收掉。
+	Private Object readResolve(){return INSTANCE;}
+
+注册试单例
+枚举单例
+*从JDK层面就为枚举不被序列化和反射破环来保驾护航
+	1. JDK不允许反射枚举对象(没有对应的反射方法)
+	2. JDK序列化创建枚举对象的时候（readEnum()），是通过Enum.valueOf((Class)cl,name);class的类名和枚举的名字查找JVM枚举的值，然后返回结果，显然JVM里面同一个类下面同一个枚举只会存储一个对象，所以返回的枚举对象都是同一个对象。
+
+publicenumEnumSingleton2{
+INSTANCE;
+
+privateObjectdata;
+
+publicstaticEnumSingleton2getInstance(){
+returnINSTANCE;
+}
+
+publicObjectgetData(){
+returndata;
+}
+
+publicvoidsetData(Objectdata){
+this.data=data;
+}
+}
+
+publicclassEnumSingleton{
+privateenumMyEnumSingleton{
+INSTANCE;
+privateObjectresource;
+MyEnumSingleton(){
+resource=newObject();
+}
+publicObjectgetResource(){
+returnresource;
+}
+}
+
+publicstaticObjectgetResource(){
+returnMyEnumSingleton.INSTANCE.getResource();
+}
+}
+
+容器式单例
+ConcurrentHashMap
+
+publicclassContainerSingleton{
+//ConcurrentHashMap是线程安全的
+privatestaticMap<String,Object>ioc=newConcurrentHashMap<String,Object>();
+
+publicstaticObjectgetBean(StringclassName){
+//getBean线程不安全，需要加synchronized锁
+synchronized(ioc){
+if(!ioc.containsKey(className)){
+try{
+Objectobj=Class.forName(className).newInstance();
+ioc.put(className,obj);
+}catch(Exceptione){
+e.printStackTrace();
+}
+}
+returnioc.get(className);
+}
+}
+}
+
+
+ThreadLocal单例：保证线程内部的全局唯一，且天生线程安全
+优点：注册式单例容器的形式，保证在单个线程里面线程安全
+应用场景：Spring ORM框架里面用ThreaLocal实现数据源的动态切换
+
+publicclassThreadLocalSingleton{
+privateThreadLocalSingleton(){}
+privatestaticfinalThreadLocal<ThreadLocalSingleton>threadLoclInstance=
+newThreadLocal<ThreadLocalSingleton>(){
+@Override
+protectedThreadLocalSingletoninitialValue(){
+returnnewThreadLocalSingleton();
+}
+};
+privatestaticThreadLocalSingletongetInstance(){
+returnthreadLoclInstance.get();
+}
+}
+
+
+
+单例优点：
+	1. 在内存中只有一个实例，减少了内存开销
+	2. 可以避免对资源的多重占用
+	3. 设置全局访问点，严格控制访问
+
+缺点：
+	1. 没有接口，扩展困难
+	2. 如果要扩展单例对象，只有修改代码没有其他途径
+
+单例特点：
+	1. 私有化构造器
+	2. 保证线程安全
+	3. 延迟加载
+	4. 防止序列化和反序列化破环单例
+	5. 防御放射攻击单例
+
+
+
+
+
